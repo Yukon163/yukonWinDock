@@ -6,6 +6,22 @@ namespace YukonWinDock.Tests;
 public class DeviceAndTelemetryTests
 {
     [Fact]
+    public void MissingStartupTaskIsDisabledForBothComAndManagedExceptions()
+    {
+        Assert.False(StartupService.QueryScheduled(() => throw new FileNotFoundException()));
+        Assert.False(StartupService.QueryScheduled(() => throw new System.Runtime.InteropServices.COMException("task missing", unchecked((int)0x80070002))));
+        Assert.True(StartupService.QueryScheduled(() => true));
+        Assert.Throws<UnauthorizedAccessException>(() => StartupService.QueryScheduled(() => throw new UnauthorizedAccessException()));
+    }
+    [Fact]
+    public void RealStartupStatusCanBeReadBeforeAnyTaskIsRegistered()
+    {
+        bool scheduled = StartupService.Scheduled;
+        bool enabled = StartupService.Enabled;
+        Assert.False(scheduled && !enabled);
+        Assert.False(string.IsNullOrWhiteSpace(StartupService.Description));
+    }
+    [Fact]
     public void VendoredIconsHaveValidWpfVectorGeometry()
     {
         using var packed = typeof(DockLayout).Assembly.GetManifestResourceStream("yukonWinDock.g.resources");

@@ -16,8 +16,7 @@ public static class StartupService
         get
         {
             dynamic? service = null;
-            try { service = Scheduler(); return (bool)service.GetFolder(@"\").GetTask(TaskName).Enabled; }
-            catch (COMException) { return false; }
+            try { return QueryScheduled(() => { service = Scheduler(); return (bool)service.GetFolder(@"\").GetTask(TaskName).Enabled; }); }
             finally { if (service != null) Marshal.FinalReleaseComObject(service); }
         }
     }
@@ -66,7 +65,7 @@ public static class StartupService
             else
             {
                 try { folder.DeleteTask(TaskName, 0); }
-                catch (COMException ex) when (ex.HResult is unchecked((int)0x80070002) or unchecked((int)0x8004130F)) { }
+                catch (Exception ex) when (IsMissingTask(ex)) { }
                 if (enabled) key.SetValue("yukonWinDock", CommandFor(Environment.ProcessPath!));
                 else key.DeleteValue("yukonWinDock", false);
             }
@@ -74,4 +73,12 @@ public static class StartupService
         finally { if (service != null) Marshal.FinalReleaseComObject(service); }
     }
     public static string CommandFor(string path) => $"\"{path}\"";
+    // COM IDispatch HRESULTs may be translated to FileNotFoundException by
+    // the C# runtime binder, rather than remaining COMException instances.
+    public static bool IsMissingTask(Exception error) => error.HResult is unchecked((int)0x80070002) or unchecked((int)0x8004130F);
+    public static bool QueryScheduled(Func<bool> lookup)
+    {
+        try { return lookup(); }
+        catch (Exception ex) when (IsMissingTask(ex)) { return false; }
+    }
 }
