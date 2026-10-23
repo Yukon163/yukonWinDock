@@ -62,4 +62,9 @@ internal static class Native
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] internal static extern nint GetWindowLongPtr(nint h, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] internal static extern nint SetWindowLongPtr(nint h, int index, nint value);
     [DllImport("user32.dll")] internal static extern bool SetForegroundWindow(nint h);
+    [DllImport("user32.dll", SetLastError = true)] internal static extern nint SetParent(nint child, nint parent);
+    [DllImport("user32.dll")] internal static extern nint GetParent(nint h);
+    [DllImport("user32.dll")] internal static extern bool IsWindow(nint h);
+    [DllImport("user32.dll")] internal static extern bool ScreenToClient(nint h, ref Point point);
+    [DllImport("user32.dll")] internal static extern bool ShowWindow(nint h, int command);
 }

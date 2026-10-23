@@ -7,7 +7,7 @@ public sealed record AnchorInfo(int X, int Y, int Width, int Height, double Scal
 
 public static class TaskbarAnchor
 {
-    public static AnchorInfo? Locate(double desiredWidth, int offset = 0)
+    public static AnchorInfo? Locate(double desiredWidth, int offset = 0, bool followParent = false)
     {
         nint taskbar = Native.FindWindow("Shell_TrayWnd", null);
         if (taskbar == 0 || !Native.GetWindowRect(taskbar, out var bar)) return null;
@@ -25,12 +25,12 @@ public static class TaskbarAnchor
         bool visible = Native.IsWindowVisible(taskbar) && height > 8 && bar.Top < mi.Monitor.Bottom - 4 && height < 160 * scale;
         nint foreground = Native.GetForegroundWindow();
         Native.GetWindowThreadProcessId(foreground, out uint pid);
-        if (foreground != 0 && foreground != taskbar && pid != Environment.ProcessId && Native.GetWindowRect(foreground, out var front))
+        if (!followParent && foreground != 0 && foreground != taskbar && pid != Environment.ProcessId && Native.GetWindowRect(foreground, out var front))
         {
             // Hide over borderless/fullscreen games; maximized apps end at the work area instead.
             if (front.Left <= mi.Monitor.Left && front.Top <= mi.Monitor.Top && front.Right >= mi.Monitor.Right && front.Bottom >= mi.Monitor.Bottom)
                 visible = false;
         }
-        return new(x, bar.Top + Math.Max(0, (height - (int)(40 * scale)) / 2), width, (int)(40 * scale), scale, visible, right, bar.Top);
+        return new(x, bar.Top + Math.Max(0, (height - (int)(34 * scale)) / 2), width, (int)(34 * scale), scale, visible, right, bar.Top);
     }
 }

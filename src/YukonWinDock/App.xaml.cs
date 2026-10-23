@@ -32,6 +32,12 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (e.Args.FirstOrDefault() == "--set-startup")
+        {
+            try { StartupService.SetEnabled(e.Args.ElementAtOrDefault(1) == "on", e.Args.Contains("--elevated-startup")); Shutdown(0); }
+            catch (Exception ex) { SettingsStore.Log(ex); Shutdown(1); }
+            return;
+        }
         if (e.Args.FirstOrDefault() == "--diagnose")
         {
             try
@@ -65,11 +71,11 @@ public partial class App : System.Windows.Application
         showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\YukonWinDock.Show");
         quitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\YukonWinDock.Quit");
         showWait = ThreadPool.RegisterWaitForSingleObject(showEvent, (_, _) => Dispatcher.BeginInvoke(ShowPanel), null, -1, false);
-        quitWait = ThreadPool.RegisterWaitForSingleObject(quitEvent, (_, _) => Dispatcher.BeginInvoke(() => Shutdown()), null, -1, false);
+        quitWait = ThreadPool.RegisterWaitForSingleObject(quitEvent, (_, _) => Dispatcher.BeginInvoke(RequestShutdown), null, -1, false);
         DispatcherUnhandledException += (_, args) => { SettingsStore.Log(args.Exception); args.Handled = true; Forms.MessageBox.Show(args.Exception.Message, "yukonWinDock"); };
         Settings = SettingsStore.Load();
         CreateTray();
-        dock = new DockWindow(); MainWindow = dock; dock.Show();
+        CreateDock();
         telemetry = await Task.Run(() => new TelemetryService { PreferredNetworkId = Settings.NetworkInterfaceId });
         _ = RunTelemetryAsync(cancellation.Token);
         _ = RunBrightnessAsync(cancellation.Token);
@@ -81,7 +87,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add("打开控制面板", null, (_, _) => Dispatcher.Invoke(ShowPanel));
         menu.Items.Add("刷新显示器", null, async (_, _) => await RefreshMonitorsAsync());
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("退出 yukonWinDock", null, (_, _) => Dispatcher.Invoke(() => Shutdown()));
+        menu.Items.Add("退出 yukonWinDock", null, (_, _) => Dispatcher.Invoke(RequestShutdown));
         var iconPath = Path.Combine(AppContext.BaseDirectory, "yukonWinDock.exe");
         tray = new Forms.NotifyIcon { Text = "yukonWinDock · 点击打开控制面板", Icon = System.Drawing.Icon.ExtractAssociatedIcon(iconPath) ?? System.Drawing.SystemIcons.Application, Visible = true, ContextMenuStrip = menu };
         tray.MouseClick += (_, args) => { if (args.Button == Forms.MouseButtons.Left) Dispatcher.Invoke(TogglePanel); };
@@ -143,22 +149,22 @@ public partial class App : System.Windows.Application
         ShowPanel();
     }
     public void SaveSettings() { SettingsStore.Save(Settings); dock?.RefreshLayout(); Updated?.Invoke(); }
-    public bool AutoStart
+    private void CreateDock()
     {
-        get { using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"); return key?.GetValue("yukonWinDock") != null; }
-        set
+        dock = new DockWindow(); MainWindow = dock;
+        dock.Closed += (_, _) =>
         {
-            using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-            if (value) key.SetValue("yukonWinDock", $"\"{Environment.ProcessPath}\"");
-            else key.DeleteValue("yukonWinDock", false);
-        }
+            if (!cancellation.IsCancellationRequested && !Dispatcher.HasShutdownStarted) Dispatcher.BeginInvoke(CreateDock);
+        };
+        dock.Show();
     }
+    public void RequestShutdown() { cancellation.Cancel(); dock?.Detach(); Shutdown(); }
     public void RestartElevated()
     {
         try
         {
             Process.Start(new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = true, Verb = "runas", Arguments = "--panel --restarted" });
-            Shutdown();
+            RequestShutdown();
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { }
     }

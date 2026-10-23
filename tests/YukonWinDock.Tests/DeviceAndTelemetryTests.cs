@@ -6,6 +6,65 @@ namespace YukonWinDock.Tests;
 public class DeviceAndTelemetryTests
 {
     [Fact]
+    public void VendoredIconsHaveValidWpfVectorGeometry()
+    {
+        using var packed = typeof(DockLayout).Assembly.GetManifestResourceStream("yukonWinDock.g.resources");
+        Assert.NotNull(packed);
+        using var reader = new System.Resources.ResourceReader(packed);
+        int count = 0;
+        foreach (System.Collections.DictionaryEntry item in reader)
+        {
+            if (!((string)item.Key).EndsWith(".svg", StringComparison.Ordinal)) continue;
+            using var stream = (Stream)item.Value!;
+            var root = System.Xml.Linq.XDocument.Load(stream).Root!;
+            foreach (var path in root.Descendants().Where(e => e.Name.LocalName == "path"))
+            {
+                var geometry = System.Windows.Media.Geometry.Parse(path.Attribute("d")!.Value);
+                Assert.True(geometry.Bounds.Width > 0 && geometry.Bounds.Height > 0);
+            }
+            count++;
+        }
+        Assert.Equal(4, count);
+    }
+    [Fact]
+    public void CompactLayoutAndOptionalValuesDoNotOverlap()
+    {
+        var compact = new AppSettings();
+        Assert.True(DockLayout.Width(compact) < 350);
+        compact.ShowFanRpm = true;
+        var tiles = DockLayout.Tiles(compact);
+        for (int i = 1; i < tiles.Count; i++) Assert.True(tiles[i].X >= tiles[i - 1].X + tiles[i - 1].Width + 8);
+        double withValues = DockLayout.Width(compact);
+        compact.ShowCpuValues = false;
+        Assert.True(DockLayout.Width(compact) < withValues);
+    }
+    [Theory]
+    [InlineData(null, 0)]
+    [InlineData(0.0, 0)]
+    [InlineData(750.0, 1)]
+    [InlineData(2300.0, 4)]
+    [InlineData(6000.0, 8)]
+    [InlineData(9000.0, 8)]
+    public void FanMeterFillsBottomSegmentsAndClampsToReference(double? rpm, int blocks)
+        => Assert.Equal(blocks, DockLayout.FanBlocks(rpm, 6000));
+    [Fact]
+    public void CpuColorHasExplicitUnknownAndLoadThresholds()
+    {
+        Assert.Equal("#88939F", DockLayout.LoadColor(null));
+        Assert.Equal("#79D5B1", DockLayout.LoadColor(54.9));
+        Assert.Equal("#E4BB6C", DockLayout.LoadColor(55));
+        Assert.Equal("#F27D82", DockLayout.LoadColor(85));
+    }
+    [Fact]
+    public void VisualOptionsSurviveReloadAndInvalidScalesAreClamped()
+    {
+        var restored = SettingsStore.Decode("{\"SettingsVersion\":2,\"ShowFanRpm\":true,\"ShowCpuValues\":false,\"FanScaleRpm\":0}");
+        Assert.True(restored.ShowFanRpm); Assert.False(restored.ShowCpuValues);
+        Assert.Equal(1000, restored.FanScaleRpm);
+        Assert.Equal(6000, SettingsStore.Decode("null").FanScaleRpm);
+        Assert.Equal("\"C:\\My Apps\\yukonWinDock.exe\"", StartupService.CommandFor(@"C:\My Apps\yukonWinDock.exe"));
+    }
+    [Fact]
     public void SecondClickClosesAndTrayDeactivationDoesNotReopen()
     {
         Assert.False(PanelTogglePolicy.ShouldShow(true, TimeSpan.MaxValue));

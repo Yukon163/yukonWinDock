@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using System.Diagnostics;
 using YukonWinDock.Core;
 using YukonWinDock.Services;
+using YukonWinDock.Interop;
 
 namespace YukonWinDock.Views;
 
@@ -27,7 +28,11 @@ public partial class ControlPanel : Window
         ShowMemory.IsChecked = settings.ShowMemory; ShowFan1.IsChecked = settings.ShowFan1;
         ShowFan2.IsChecked = settings.ShowFan2; ShowBrightness.IsChecked = settings.ShowBrightness;
         OffsetSlider.Value = settings.HorizontalOffset;
-        Startup.IsChecked = App.Current.AutoStart;
+        Startup.IsChecked = StartupService.Enabled;
+        StartupElevated.IsChecked = Startup.IsChecked == true ? StartupService.Scheduled : settings.AutoStartElevated;
+        StartupStatus.Text = StartupService.Description;
+        CpuValues.IsChecked = settings.ShowCpuValues; FanRpm.IsChecked = settings.ShowFanRpm;
+        FanScale.Text = settings.FanScaleRpm.ToString();
         var choices = new[] { new AdapterChoice(null, "自动 · 默认路由网卡") }.Concat(TelemetryService.Adapters().Select(n => new AdapterChoice(n.Id, n.Name))).ToArray();
         NetworkChoice.ItemsSource = choices;
         NetworkChoice.SelectedItem = choices.FirstOrDefault(n => n.Id == settings.NetworkInterfaceId) ?? choices[0];
@@ -48,7 +53,8 @@ public partial class ControlPanel : Window
         double scale = PresentationSource.FromVisual((Window?)dock ?? this)?.CompositionTarget?.TransformToDevice.M11 ?? 1;
         var area = screen.WorkingArea;
         Height = Math.Min(690, area.Height / scale - 24);
-        double right = dock != null ? dock.Left + dock.ActualWidth : area.Right / scale - 12;
+        double right = dock != null && Native.GetWindowRect(new WindowInteropHelper(dock).Handle, out var dockRect)
+            ? dockRect.Right / scale : area.Right / scale - 12;
         Left = Math.Clamp(right - Width, area.Left / scale + 12, Math.Max(area.Left / scale + 12, area.Right / scale - Width - 12));
         Top = area.Bottom / scale - Height - 10;
     }
@@ -85,6 +91,7 @@ public partial class ControlPanel : Window
             NetworkValue.ToolTip = s.NetworkName;
             AdminButton.Visibility = s.Fans.Count == 0 && !app.IsAdministrator && s.FanStatus.Contains("管理员") ? Visibility.Visible : Visibility.Collapsed;
         }
+        PreviewStrip.Apply(app.Settings, app.Snapshot, app.SelectedMonitor);
         syncing = false;
     }
     private void MonitorChanged(object sender, SelectionChangedEventArgs e)
@@ -146,10 +153,34 @@ public partial class ControlPanel : Window
     }
     private void OffsetChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     { if (!syncing && IsLoaded) { App.Current.Settings.HorizontalOffset = (int)e.NewValue; App.Current.SaveSettings(); } }
-    private void StartupChanged(object sender, RoutedEventArgs e)
+    private async void StartupChanged(object sender, RoutedEventArgs e)
     {
-        try { App.Current.AutoStart = Startup.IsChecked == true; }
-        catch (Exception ex) { Startup.IsChecked = App.Current.AutoStart; System.Windows.MessageBox.Show(this, ex.Message, "无法更改启动设置"); }
+        if (syncing) return;
+        if (sender == StartupElevated && Startup.IsChecked != true) { App.Current.Settings.AutoStartElevated = StartupElevated.IsChecked == true; App.Current.SaveSettings(); return; }
+        Startup.IsEnabled = StartupElevated.IsEnabled = false;
+        try
+        {
+            App.Current.Settings.AutoStartElevated = StartupElevated.IsChecked == true;
+            await StartupService.SetEnabledAsync(Startup.IsChecked == true, StartupElevated.IsChecked == true);
+            App.Current.SaveSettings();
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { }
+        catch (Exception ex) { System.Windows.MessageBox.Show(this, ex.Message, "无法更改启动设置"); }
+        finally { Startup.IsChecked = StartupService.Enabled; StartupStatus.Text = StartupService.Description; Startup.IsEnabled = StartupElevated.IsEnabled = true; }
+    }
+    private void VisualOptionsChanged(object sender, RoutedEventArgs e)
+    {
+        if (syncing) return;
+        App.Current.Settings.ShowCpuValues = CpuValues.IsChecked == true;
+        App.Current.Settings.ShowFanRpm = FanRpm.IsChecked == true;
+        App.Current.SaveSettings();
+    }
+    private void FanScaleChanged(object sender, RoutedEventArgs e)
+    {
+        if (syncing) return;
+        if (int.TryParse(FanScale.Text, out int rpm) && rpm is >= 1000 and <= 20000) App.Current.Settings.FanScaleRpm = rpm;
+        FanScale.Text = App.Current.Settings.FanScaleRpm.ToString();
+        App.Current.SaveSettings();
     }
     private void AddAction(object sender, RoutedEventArgs e)
     {
@@ -175,7 +206,7 @@ public partial class ControlPanel : Window
     private void ClosePanel(object sender, RoutedEventArgs e) => Hide();
     private void OpenDisplayOptions(object sender, RoutedEventArgs e) { DisplayOptions.IsExpanded = true; DisplayOptions.BringIntoView(); }
     private void PanelKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) Hide(); }
-    private void Quit(object sender, RoutedEventArgs e) => App.Current.Shutdown();
+    private void Quit(object sender, RoutedEventArgs e) => App.Current.RequestShutdown();
     private void RestartAdmin(object sender, RoutedEventArgs e) => App.Current.RestartElevated();
     private void DragHeader(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed && e.OriginalSource is not Button) DragMove(); }
     private sealed record AdapterChoice(string? Id, string Name);

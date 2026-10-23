@@ -28,6 +28,10 @@ public sealed class AppSettings
     public bool ShowFan1 { get; set; } = true;
     public bool ShowFan2 { get; set; } = true;
     public bool ShowBrightness { get; set; } = true;
+    public bool ShowCpuValues { get; set; } = true;
+    public bool ShowFanRpm { get; set; }
+    public int FanScaleRpm { get; set; } = 6000;
+    public bool AutoStartElevated { get; set; } = true;
     public int HorizontalOffset { get; set; }
     public string? SelectedMonitorId { get; set; }
     public string? NetworkInterfaceId { get; set; }
@@ -50,6 +54,7 @@ public static class SettingsStore
     {
         var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new();
         using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object) return new();
         if (!document.RootElement.TryGetProperty("SettingsVersion", out _) || settings.SettingsVersion < 2)
         {
             settings.ShowDownload = settings.ShowUpload = settings.ShowNetwork;
@@ -59,6 +64,7 @@ public static class SettingsStore
         }
         settings.Actions ??= [];
         settings.HorizontalOffset = Math.Clamp(settings.HorizontalOffset, -600, 0);
+        settings.FanScaleRpm = Math.Clamp(settings.FanScaleRpm, 1000, 20000);
         return settings;
     }
     public static void Save(AppSettings settings)

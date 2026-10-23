@@ -9,4 +9,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
 if ($Publish) {
     & $dotnetExe publish (Join-Path $projectRoot 'src\YukonWinDock\YukonWinDock.csproj') -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o (Join-Path $projectRoot 'artifacts\win-x64') --nologo
     if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'THIRD_PARTY_NOTICES.md') -Destination (Join-Path $projectRoot 'artifacts\win-x64\THIRD_PARTY_NOTICES.md')
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'src\YukonWinDock\Assets\Icons\LICENSE.txt') -Destination (Join-Path $projectRoot 'artifacts\win-x64\LICENSE.txt')
 }

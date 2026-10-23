@@ -8,11 +8,13 @@
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <AssemblyName>yukonWinDock</AssemblyName>
     <RootNamespace>YukonWinDock</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets\Icons\*.svg" />
+    <None Update="Assets\Icons\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="System.Management" Version="10.0.0" />
   </ItemGroup>
   <ItemGroup>
