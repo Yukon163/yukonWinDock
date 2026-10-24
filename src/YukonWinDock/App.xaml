@@ -7,6 +7,22 @@
     <SolidColorBrush x:Key="TextBrush" Color="#F0F2F4" />
     <SolidColorBrush x:Key="MutedBrush" Color="#9EA6B1" />
     <SolidColorBrush x:Key="AccentBrush" Color="#7ADBB4" />
+    <Style TargetType="ToolTip">
+      <Setter Property="Background" Value="#252C33" />
+      <Setter Property="Foreground" Value="#EDF2F6" />
+      <Setter Property="BorderBrush" Value="#495661" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="11,9" />
+      <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MaxWidth" Value="360" />
+      <Setter Property="HasDropShadow" Value="False" />
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToolTip">
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+          <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" />
+        </Border>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
     <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource TextBrush}" /><Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI" /></Style>
     <Style TargetType="Button">
       <Setter Property="Foreground" Value="#ECF0F3" /><Setter Property="Background" Value="#30363E" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="13,8" /><Setter Property="Cursor" Value="Hand" />

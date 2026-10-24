@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Automation.Peers;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Xml.Linq;
@@ -17,12 +19,25 @@ public sealed class DockStrip : FrameworkElement
     private TelemetrySnapshot? snapshot;
     private MonitorInfo? monitor;
     private string? hovered;
+    private readonly ToolTip hoverTip = new() { Focusable = false, IsHitTestVisible = false };
+    private readonly TextBlock hoverText = new() { Foreground = Text, TextWrapping = TextWrapping.Wrap, MaxWidth = 320 };
     public double DesiredDockWidth => DockLayout.Width(settings);
-    public DockStrip() { Height = 34; Focusable = false; SnapsToDevicePixels = true; UseLayoutRounding = true; Cursor = Cursors.Hand; }
+    public DockStrip()
+    {
+        Height = 34; Focusable = false; SnapsToDevicePixels = true; UseLayoutRounding = true; Cursor = Cursors.Hand;
+        hoverTip.Content = hoverText;
+        ToolTipService.SetInitialShowDelay(this, 600);
+        ToolTipService.SetBetweenShowDelay(this, 150);
+        ToolTipService.SetShowDuration(this, 10000);
+        ToolTipService.SetPlacement(this, PlacementMode.Top);
+        ToolTipService.SetVerticalOffset(this, -6);
+    }
     public void Apply(AppSettings options, TelemetrySnapshot? data, MonitorInfo? display)
     {
         settings = options; snapshot = data; monitor = display;
         if (Width != DesiredDockWidth) Width = DesiredDockWidth;
+        if (hovered != null && !DockLayout.Tiles(options).Any(t => t.Key == hovered)) ClearHover();
+        if (hovered != null && hoverTip.IsOpen) UpdateHoverText();
         InvalidateVisual();
     }
     protected override AutomationPeer OnCreateAutomationPeer() => new FrameworkElementAutomationPeer(this);
@@ -31,9 +46,17 @@ public sealed class DockStrip : FrameworkElement
         base.OnMouseMove(e);
         string? key = Hit(e.GetPosition(this).X)?.Key;
         if (hovered == key) return;
-        hovered = key; ToolTip = Description(key);
+        if (key == null) { ClearHover(); return; }
+        hovered = key; UpdateHoverText(); ToolTip = hoverTip;
     }
-    protected override void OnMouseLeave(MouseEventArgs e) { base.OnMouseLeave(e); hovered = null; }
+    protected override void OnMouseLeave(MouseEventArgs e) { base.OnMouseLeave(e); ClearHover(); }
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e) { ClearHover(); base.OnMouseLeftButtonDown(e); }
+    private void ClearHover() { hoverTip.IsOpen = false; ToolTip = null; hovered = null; }
+    private void UpdateHoverText()
+    {
+        string description = Description(hovered);
+        if (hoverText.Text != description) hoverText.Text = description;
+    }
     public bool IsBrightnessAt(System.Windows.Point point) => Hit(point.X)?.Key == "brightness";
     private DockTile? Hit(double x) => DockLayout.Tiles(settings).FirstOrDefault(t => x >= t.X && x <= t.X + t.Width);
     private string Description(string? key) => key switch
